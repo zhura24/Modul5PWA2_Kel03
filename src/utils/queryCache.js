@@ -1,11 +1,15 @@
 const cache = new Map()
 const pendingQueries = new Map()
 
-export async function getCachedQuery(key, query, staleTime = 30000, force = false) {
+export function getCachedQueryData(key, staleTime = 30000) {
   const cached = cache.get(key)
-  if (!force && cached && Date.now() - cached.createdAt < staleTime) {
-    return cached.data
-  }
+  if (!cached || Date.now() - cached.createdAt >= staleTime) return null
+  return cached.data
+}
+
+export async function getCachedQuery(key, query, staleTime = 30000, force = false) {
+  const cached = getCachedQueryData(key, staleTime)
+  if (!force && cached) return cached
 
   if (!force && pendingQueries.has(key)) {
     return pendingQueries.get(key)

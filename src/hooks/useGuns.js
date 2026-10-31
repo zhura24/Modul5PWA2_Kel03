@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import gunService from '../services/gunService'
-import { getCachedQuery } from '../utils/queryCache'
+import { getCachedQuery, getCachedQueryData } from '../utils/queryCache'
 
 // ---------------------------------------------------------------------------
 // useGuns — fetch the paginated / filtered product list from the API.
@@ -11,21 +11,30 @@ import { getCachedQuery } from '../utils/queryCache'
 // ---------------------------------------------------------------------------
 
 export function useGuns(params = {}) {
-  const [guns, setGuns] = useState([])
-  const [loading, setLoading] = useState(true)
+  const paramKey = JSON.stringify(params)
+  const cacheKey = `guns:${paramKey}`
+  const [guns, setGuns] = useState(() => getCachedQueryData(cacheKey)?.data || [])
+  const [loading, setLoading] = useState(() => !getCachedQueryData(cacheKey))
   const [error, setError] = useState(null)
   const [pagination, setPagination] = useState(null)
 
   // Serialise params so the effect re-runs when they change.
-  const paramKey = JSON.stringify(params)
-
   const fetchGuns = useCallback(async (force = false) => {
     try {
+      const cached = !force && getCachedQueryData(cacheKey)
+      if (cached) {
+        setGuns(cached.data || [])
+        setPagination(cached.pagination || null)
+        setError(null)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setError(null)
 
       const response = await getCachedQuery(
-        `guns:${paramKey}`,
+        cacheKey,
         async () => {
           const result = await gunService.getGuns(params)
           if (!result.success) throw new Error(result.message || 'Failed to fetch products.')
@@ -48,7 +57,7 @@ export function useGuns(params = {}) {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramKey])
+  }, [cacheKey, paramKey])
 
   useEffect(() => {
     fetchGuns()
@@ -70,8 +79,10 @@ export function useGuns(params = {}) {
 // ---------------------------------------------------------------------------
 
 export function useGunById(id) {
-  const [gun, setGun] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `gun:${id}`
+  const cachedGunResponse = id ? getCachedQueryData(cacheKey) : null
+  const [gun, setGun] = useState(() => cachedGunResponse?.data || null)
+  const [loading, setLoading] = useState(() => Boolean(id) && !cachedGunResponse)
   const [error, setError] = useState(null)
 
   const fetchGun = useCallback(async (force = false) => {
@@ -80,11 +91,19 @@ export function useGunById(id) {
       return
     }
     try {
+      const cached = !force && getCachedQueryData(cacheKey)
+      if (cached) {
+        setGun(cached.data)
+        setError(null)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setError(null)
 
       const response = await getCachedQuery(
-        `gun:${id}`,
+        cacheKey,
         async () => {
           const result = await gunService.getGunById(id)
           if (!result.success) throw new Error(result.message || 'Product not found.')
@@ -105,7 +124,7 @@ export function useGunById(id) {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [cacheKey, id])
 
   useEffect(() => {
     fetchGun()
