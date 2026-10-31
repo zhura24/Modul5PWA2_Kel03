@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import gunService from '../services/gunService'
+import { getCachedQuery } from '../utils/queryCache'
 
 // ---------------------------------------------------------------------------
 // useGuns — fetch the paginated / filtered product list from the API.
@@ -18,18 +19,27 @@ export function useGuns(params = {}) {
   // Serialise params so the effect re-runs when they change.
   const paramKey = JSON.stringify(params)
 
-  const fetchGuns = useCallback(async () => {
+  const fetchGuns = useCallback(async (force = false) => {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await gunService.getGuns(params)
+      const response = await getCachedQuery(
+        `guns:${paramKey}`,
+        async () => {
+          const result = await gunService.getGuns(params)
+          if (!result.success) throw new Error(result.message || 'Failed to fetch products.')
+          return result
+        },
+        30000,
+        force,
+      )
 
       if (response.success) {
         setGuns(response.data || [])
         setPagination(response.pagination || null)
       } else {
-        setError(response.message || 'Failed to fetch products.')
+        throw new Error(response.message || 'Failed to fetch products.')
       }
     } catch (err) {
       setError(err.message || 'An error occurred while fetching products.')
@@ -44,7 +54,13 @@ export function useGuns(params = {}) {
     fetchGuns()
   }, [fetchGuns])
 
-  return { guns, loading, error, pagination, refetch: fetchGuns }
+  return {
+    guns,
+    loading,
+    error,
+    pagination,
+    refetch: () => fetchGuns(true),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +74,7 @@ export function useGunById(id) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const fetchGun = useCallback(async () => {
+  const fetchGun = useCallback(async (force = false) => {
     if (!id) {
       setLoading(false)
       return
@@ -67,7 +83,16 @@ export function useGunById(id) {
       setLoading(true)
       setError(null)
 
-      const response = await gunService.getGunById(id)
+      const response = await getCachedQuery(
+        `gun:${id}`,
+        async () => {
+          const result = await gunService.getGunById(id)
+          if (!result.success) throw new Error(result.message || 'Product not found.')
+          return result
+        },
+        30000,
+        force,
+      )
 
       if (response.success) {
         setGun(response.data)
@@ -86,5 +111,5 @@ export function useGunById(id) {
     fetchGun()
   }, [fetchGun])
 
-  return { gun, loading, error, refetch: fetchGun }
+  return { gun, loading, error, refetch: () => fetchGun(true) }
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { RefreshCw, Plus, Loader, AlertCircle, PackageOpen } from 'lucide-react'
 import { useGuns } from '../hooks/useGuns'
 import GUNS_LOCAL from '../data/guns'
@@ -6,7 +6,7 @@ import GunCard from '../components/gun/GunCard'
 import GunDetail from '../components/gun/GunDetail'
 import AdvancedFilter from '../components/common/AdvancedFilter'
 import ConfirmModal from '../components/modals/ConfirmModal'
-import gunService from '../services/gunService'
+import { archiveGun, getArchivedGunIds } from '../services/archiveService'
 import {
   matchesSearch,
   matchesCategory,
@@ -23,10 +23,20 @@ import {
  *
  * Features: search, category filter, sort, CRUD actions, detail modal.
  */
-export default function Catalog({ onNavigate }) {
+export default function Catalog({ onNavigate, onAddToCart }) {
   // ---- API data ----
   const { guns: apiGuns, loading, error, refetch } = useGuns({ limit: 50 })
   const [useLocal, setUseLocal] = useState(false)
+  const [archiveState, setArchiveState] = useState(() => {
+    try {
+      return { ids: getArchivedGunIds(), error: '' }
+    } catch (archiveError) {
+      return { ids: [], error: archiveError.message }
+    }
+  })
+  const archivedIds = archiveState.ids
+  const [visibleState, setVisibleState] = useState({ filterKey: '', count: 12 })
+  const loadMoreRef = useRef(null)
 
   // Decide data source
   const rawGuns = useMemo(() => {
@@ -43,14 +53,43 @@ export default function Catalog({ onNavigate }) {
   const [sortKey, setSortKey] = useState('name')
   const [sortOrder, setSortOrder] = useState('asc')
 
-  const categories = useMemo(() => extractCategories(rawGuns), [rawGuns])
+  const visibleCatalog = useMemo(
+    () => rawGuns.filter((gun) => !archivedIds.includes(String(gun.id))),
+    [rawGuns, archivedIds],
+  )
+  const categories = useMemo(() => extractCategories(visibleCatalog), [visibleCatalog])
 
   const filteredGuns = useMemo(() => {
-    let result = rawGuns.filter(
+    let result = visibleCatalog.filter(
       (g) => matchesSearch(g, search) && matchesCategory(g, activeCategory),
     )
     return sortItems(result, sortKey, sortOrder)
-  }, [rawGuns, search, activeCategory, sortKey, sortOrder])
+  }, [visibleCatalog, search, activeCategory, sortKey, sortOrder])
+
+  const filterKey = JSON.stringify([search, activeCategory, sortKey, sortOrder])
+  const visibleCount = visibleState.filterKey === filterKey ? visibleState.count : 12
+  const displayedGuns = filteredGuns.slice(0, visibleCount)
+
+  const loadMore = useCallback(() => {
+    setVisibleState((current) => {
+      const currentCount = current.filterKey === filterKey ? current.count : 12
+      return { filterKey, count: Math.min(currentCount + 12, filteredGuns.length) }
+    })
+  }, [filterKey, filteredGuns.length])
+
+  useEffect(() => {
+    const node = loadMoreRef.current
+    if (!node || visibleCount >= filteredGuns.length || !('IntersectionObserver' in window)) return
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        loadMore()
+      }
+    }, { rootMargin: '240px' })
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [filteredGuns.length, visibleCount, filterKey, loadMore])
 
   // ---- detail view ----
   const [selectedGun, setSelectedGun] = useState(null)
@@ -65,11 +104,14 @@ export default function Catalog({ onNavigate }) {
     try {
       setDeleting(true)
       setDeleteError('')
-      await gunService.deleteGun(deleteTarget.id)
+      archiveGun(deleteTarget.id)
+      setArchiveState((current) => ({
+        ids: [...new Set([...current.ids, String(deleteTarget.id)])],
+        error: '',
+      }))
       setDeleteTarget(null)
-      refetch()
     } catch (err) {
-      setDeleteError(err.message || 'Failed to delete.')
+      setDeleteError(err.message || 'Failed to archive.')
     } finally {
       setDeleting(false)
     }
@@ -82,7 +124,8 @@ export default function Catalog({ onNavigate }) {
         gun={selectedGun}
         onBack={() => setSelectedGun(null)}
         onEdit={(g) => onNavigate && onNavigate('Edit', g)}
-        onDelete={(g) => { setSelectedGun(null); setDeleteTarget(g) }}
+        onArchive={(g) => { setSelectedGun(null); setDeleteTarget(g) }}
+        onAddToCart={onAddToCart}
       />
     )
   }
@@ -99,6 +142,7 @@ export default function Catalog({ onNavigate }) {
       </section>
 
       <section>
+        {archiveState.error && <p className="form-error" role="alert">{archiveState.error}</p>}
         <div className="list-head">
           <h2>Current stock</h2>
           <div className="list-head-right">
@@ -159,23 +203,35 @@ export default function Catalog({ onNavigate }) {
         {!loading && filteredGuns.length === 0 && !error && (
           <div className="state-box">
             <PackageOpen size={28} />
-            <p>No products match your search.</p>
+            <p>No active products match your search.</p>
           </div>
         )}
 
         {/* Product grid */}
-        {filteredGuns.length > 0 && (
+        {displayedGuns.length > 0 && (
           <ul className="stock">
-            {filteredGuns.map((gun) => (
+            {displayedGuns.map((gun) => (
               <GunCard
                 key={gun.id || gun.name}
                 gun={gun}
                 onSelect={setSelectedGun}
                 onEdit={onNavigate ? (g) => onNavigate('Edit', g) : undefined}
-                onDelete={setDeleteTarget}
+                onArchive={setDeleteTarget}
               />
             ))}
           </ul>
+        )}
+        {visibleCount < filteredGuns.length && (
+          <div className="load-more">
+            <div ref={loadMoreRef} aria-hidden="true" />
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={loadMore}
+            >
+              Load more items
+            </button>
+          </div>
         )}
 
         {useLocal && (
@@ -195,17 +251,14 @@ export default function Catalog({ onNavigate }) {
       {/* Delete confirmation */}
       <ConfirmModal
         open={!!deleteTarget}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        danger
+        title="Archive Product"
+        message={`Move "${deleteTarget?.name}" to your profile archive? You can restore it later.`}
+        confirmLabel="Archive"
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => { setDeleteTarget(null); setDeleteError('') }}
       />
-      {deleteError && (
-        <div className="toast toast--error">{deleteError}</div>
-      )}
+      {deleteError && <div className="toast toast--error" role="alert">{deleteError}</div>}
     </>
   )
 }

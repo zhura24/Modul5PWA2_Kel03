@@ -35,12 +35,38 @@ npm run lint     # oxlint
     ├── index.css           # global styles
     ├── components/
     │   ├── Header.jsx      # brand + nav
-    │   ├── GunCard.jsx     # single product card
+    │   ├── gun/
+    │   │   ├── GunCard.jsx
+    │   │   └── GunDetail.jsx
     │   └── Footer.jsx
-    ├── data/
-    │   └── guns.js         # dummy product data
-    └── pages/
+    ├── hooks/
+    │   ├── useGuns.js      # cached product queries
+    │   └── useReviews.js   # review queries and actions
+    ├── services/
+    │   ├── archiveService.js # local archive/restore state
+    │   ├── gunService.js
+    │   └── reviewService.js
+    ├── pages/
         ├── Catalog.jsx     # product grid
+        ├── ProfilePage.jsx # profile, drafts, archive, about, and contact
+        ├── EditProfilePage.jsx
+        ├── DemoCartPage.jsx
         ├── About.jsx
         └── Contact.jsx
+    ├── data/
+    │   └── guns.js         # dummy product data
+    └── utils/
+        ├── draftStorage.js
+        └── queryCache.js
 ```
+
+## Features
+
+- Catalog items load progressively, and product/review queries are cached for
+  30 seconds.
+- Product detail links can be shared with the `?gun=<id>` URL parameter.
+- Profile sections include drafts, archived items, About, and Contact. Archive
+  state, review reactions, and the demo cart are stored in the current browser.
+- Reviews can be created, edited, removed, and rated with thumbs up/down.
+- The demo cart is local-only and intentionally has no checkout or order flow.
+- WhatsApp contact from the demo cart is for general app questions only and does not include cart details.

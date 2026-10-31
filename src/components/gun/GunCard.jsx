@@ -8,9 +8,9 @@ import { formatPrice, truncate } from '../../utils/helpers'
  * @param {Object}   props.gun       — product data
  * @param {Function} props.onSelect  — called with the gun when clicked
  * @param {Function} [props.onEdit]  — called when Edit is clicked (admin)
- * @param {Function} [props.onDelete]— called when Delete is clicked (admin)
+ * @param {Function} [props.onArchive]— called when Archive is clicked
  */
-export default function GunCard({ gun, onSelect, onEdit, onDelete }) {
+export default function GunCard({ gun, onSelect, onEdit, onArchive }) {
   const imgSrc = gun.image_url || gun.image || '/guns/pistol.svg'
   const category = gun.type || gun.category || '—'
   const caliber = gun.caliber || gun.difficulty || ''
@@ -63,13 +63,13 @@ export default function GunCard({ gun, onSelect, onEdit, onDelete }) {
           </button>
         )}
 
-        {onDelete && (
+        {onArchive && (
           <button
             type="button"
             className="card-act-btn card-act-btn--danger"
-            onClick={(e) => { e.stopPropagation(); onDelete(gun) }}
-            aria-label={`Delete ${gun.name}`}
-            title="Delete"
+            onClick={(e) => { e.stopPropagation(); onArchive(gun) }}
+            aria-label={`Archive ${gun.name}`}
+            title="Archive"
           >
             🗑️
           </button>

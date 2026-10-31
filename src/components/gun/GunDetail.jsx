@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, Star, Send, Loader } from 'lucide-react'
+import { ArrowLeft, Star, Send, Loader, Share2, ShoppingBag, ThumbsUp, ThumbsDown, Pencil, Trash2, Check, X } from 'lucide-react'
 import FavoriteButton from '../common/FavoriteButton'
 import { useReviews, useCreateReview } from '../../hooks/useReviews'
-import { getUserIdentifier } from '../../services/userService'
+import { getUserIdentifier, getUserProfile } from '../../services/userService'
 import { formatPrice, averageRating } from '../../utils/helpers'
 
 /**
@@ -12,21 +12,33 @@ import { formatPrice, averageRating } from '../../utils/helpers'
  * @param {Object}   props.gun       — product data
  * @param {Function} props.onBack    — return to catalog
  * @param {Function} [props.onEdit]  — navigate to edit page
- * @param {Function} [props.onDelete]— trigger delete flow
+ * @param {Function} [props.onArchive] — trigger archive flow
  */
-export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
+export default function GunDetail({ gun, onBack, onEdit, onArchive, onAddToCart }) {
   const imgSrc = gun.image_url || gun.image || '/guns/pistol.svg'
   const category = gun.type || gun.category || '—'
   const caliber = gun.caliber || gun.difficulty || ''
   const price = gun.price ?? gun.cook_time ?? 0
+  const canReview = Boolean(gun.id) && !String(gun.id).startsWith('local-')
+  const canShare = Boolean(gun.id) && !String(gun.id).startsWith('local-')
 
   // Reviews
   const { reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews(gun.id)
-  const { createReview, loading: submitting } = useCreateReview()
+  const {
+    createReview,
+    updateReview,
+    deleteReview,
+    voteReview,
+    loading: submitting,
+  } = useCreateReview()
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
+  const [editingReviewId, setEditingReviewId] = useState(null)
+  const [shareMessage, setShareMessage] = useState('')
   const [reviewError, setReviewError] = useState('')
   const [reviewSuccess, setReviewSuccess] = useState('')
+  const userIdentifier = getUserIdentifier()
+  const profile = getUserProfile()
 
   const avgRating = gun.average_rating || averageRating(reviews)
   const reviewCount = gun.review_count ?? reviews.length
@@ -36,25 +48,81 @@ export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
     setReviewError('')
     setReviewSuccess('')
 
+    if (!canReview) {
+      setReviewError('Reviews require a server-generated product ID.')
+      return
+    }
     if (rating < 1 || rating > 5) {
       setReviewError('Rating must be between 1 and 5.')
       return
     }
 
-    const result = await createReview(gun.id, {
-      user_identifier: getUserIdentifier(),
+    const reviewData = {
       rating,
       comment: comment.trim(),
-    })
+    }
+    const result = editingReviewId
+      ? await updateReview(editingReviewId, reviewData)
+      : await createReview(gun.id, reviewData)
 
     if (result) {
-      setReviewSuccess('Review submitted!')
+      setReviewSuccess(editingReviewId ? 'Review updated.' : 'Review submitted!')
+      setEditingReviewId(null)
       setComment('')
       setRating(5)
       refetchReviews()
     } else {
       setReviewError('Could not submit review. The server may be unavailable.')
     }
+  }
+
+  const handleShare = async () => {
+    if (!canShare) {
+      setShareMessage('This item does not have a shareable server ID.')
+      return
+    }
+
+    const url = new URL(window.location.href)
+    url.searchParams.set('gun', String(gun.id))
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: gun.name, url: url.toString() })
+        setShareMessage('Link shared.')
+      } else {
+        await navigator.clipboard.writeText(url.toString())
+        setShareMessage('Unique link copied.')
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setShareMessage('Could not share the link. Check browser permissions.')
+      }
+    }
+    window.setTimeout(() => setShareMessage(''), 3000)
+  }
+
+  const handleEditReview = (review) => {
+    setEditingReviewId(review.id)
+    setRating(Number(review.rating) || 5)
+    setComment(review.comment || '')
+    setReviewError('')
+    setReviewSuccess('')
+  }
+
+  const handleDeleteReview = async (reviewId) => {
+    if (!window.confirm('Delete this review?')) return
+    const result = await deleteReview(reviewId)
+    if (result) {
+      setReviewSuccess('Review deleted.')
+      refetchReviews()
+    } else {
+      setReviewError('Could not delete the review.')
+    }
+  }
+
+  const handleVote = async (reviewId, direction) => {
+    const result = await voteReview(reviewId, direction)
+    if (result) refetchReviews()
+    else setReviewError('Could not save your reaction.')
   }
 
   return (
@@ -84,17 +152,26 @@ export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
 
           <div className="detail-actions">
             <FavoriteButton gunId={gun.id || gun.name} />
+            {onAddToCart && (
+              <button type="button" className="btn btn--outline" onClick={() => onAddToCart(gun)}>
+                <ShoppingBag size={16} /> Add to demo cart
+              </button>
+            )}
+            <button type="button" className="btn btn--outline" onClick={handleShare}>
+              <Share2 size={16} /> Share link
+            </button>
             {onEdit && (
               <button type="button" className="btn btn--outline" onClick={() => onEdit(gun)}>
                 Edit
               </button>
             )}
-            {onDelete && (
-              <button type="button" className="btn btn--danger" onClick={() => onDelete(gun)}>
-                Delete
+            {onArchive && (
+              <button type="button" className="btn btn--outline" onClick={() => onArchive(gun)}>
+                Archive
               </button>
             )}
           </div>
+          {shareMessage && <p className="form-hint" role="status">{shareMessage}</p>}
         </div>
       </div>
 
@@ -167,18 +244,31 @@ export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
           <button
             type="submit"
             className="btn btn--primary"
-            disabled={submitting || !gun.id}
+            disabled={submitting || !canReview}
           >
             {submitting ? (
               <><Loader size={16} className="spin" /> Submitting…</>
             ) : (
-              <><Send size={16} /> Submit Review</>
+              <>{editingReviewId ? <Check size={16} /> : <Send size={16} />}{editingReviewId ? 'Save Review' : 'Submit Review'}</>
             )}
           </button>
+          {editingReviewId && (
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={() => {
+                setEditingReviewId(null)
+                setComment('')
+                setRating(5)
+              }}
+            >
+              <X size={16} /> Cancel edit
+            </button>
+          )}
 
           {reviewError && <p className="form-error">{reviewError}</p>}
           {reviewSuccess && <p className="form-success">{reviewSuccess}</p>}
-          {!gun.id && (
+          {!canReview && (
             <p className="form-hint">
               Reviews require a server-generated product ID. This product is local-only.
             </p>
@@ -193,7 +283,13 @@ export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
             {reviews.map((rev) => (
               <li key={rev.id} className="review-item">
                 <div className="review-head">
-                  <span className="review-user">{rev.user_identifier || 'Anonymous'}</span>
+                  <span className="review-user">
+                    {(rev.user_id || rev.user_identifier) === userIdentifier
+                      ? profile.username || 'You'
+                      : rev.user_identifier
+                        ? `Operator ${String(rev.user_identifier).slice(0, 8)}`
+                        : 'Anonymous'}
+                  </span>
                   <span className="review-stars-display">
                     {Array.from({ length: 5 }, (_, i) => (
                       <Star
@@ -206,6 +302,36 @@ export default function GunDetail({ gun, onBack, onEdit, onDelete }) {
                   </span>
                 </div>
                 {rev.comment && <p className="review-comment">{rev.comment}</p>}
+                <div className="review-controls">
+                  <button
+                    type="button"
+                    className={rev.myVote === 'up' ? 'btn btn--sm btn--outline is-selected' : 'btn btn--sm btn--outline'}
+                    onClick={() => handleVote(rev.id, 'up')}
+                    aria-label="Thumbs up review"
+                    aria-pressed={rev.myVote === 'up'}
+                  >
+                    <ThumbsUp size={14} /> {rev.thumbsUp || 0}
+                  </button>
+                  <button
+                    type="button"
+                    className={rev.myVote === 'down' ? 'btn btn--sm btn--outline is-selected' : 'btn btn--sm btn--outline'}
+                    onClick={() => handleVote(rev.id, 'down')}
+                    aria-label="Thumbs down review"
+                    aria-pressed={rev.myVote === 'down'}
+                  >
+                    <ThumbsDown size={14} /> {rev.thumbsDown || 0}
+                  </button>
+                  {(rev.user_id || rev.user_identifier) === userIdentifier && (
+                    <>
+                      <button type="button" className="btn btn--sm btn--outline" onClick={() => handleEditReview(rev)}>
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button type="button" className="btn btn--sm btn--danger-ghost" onClick={() => handleDeleteReview(rev.id)}>
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

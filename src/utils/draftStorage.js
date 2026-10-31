@@ -108,6 +108,15 @@ export const getAllDraftIds = () => {
   }
 }
 
+export const getAllDrafts = () =>
+  getAllDraftIds()
+    .map((id) => {
+      const draft = loadDraft(id)
+      return draft ? { id, draft } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.draft.savedAt || 0) - new Date(a.draft.savedAt || 0))
+
 /**
  * Remove every gun draft from storage.
  */

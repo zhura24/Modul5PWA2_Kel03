@@ -1,4 +1,5 @@
 import { apiClient, IS_SUPABASE } from '../config/api'
+import { invalidateQueryCache } from '../utils/queryCache'
 
 // ---------------------------------------------------------------------------
 // Normalizer — standardizes product shape whether received from Supabase
@@ -146,10 +147,15 @@ class GunService {
       const res = await apiClient.post('/rest/v1/products', payload, {
         headers: { Prefer: 'return=representation' },
       })
+      invalidateQueryCache('guns:')
+      invalidateQueryCache('gun:')
       const created = Array.isArray(res) ? res[0] : res
       return { success: true, data: normalizeProduct(created) }
     }
-    return apiClient.post('/api/v1/recipes', data)
+    const response = await apiClient.post('/api/v1/recipes', data)
+    invalidateQueryCache('guns:')
+    invalidateQueryCache('gun:')
+    return response
   }
 
   /**
@@ -179,10 +185,15 @@ class GunService {
       const res = await apiClient.patch(`/rest/v1/products?id=eq.${id}`, payload, {
         headers: { Prefer: 'return=representation' },
       })
+      invalidateQueryCache('guns:')
+      invalidateQueryCache('gun:')
       const updated = Array.isArray(res) ? res[0] : res
       return { success: true, data: normalizeProduct(updated) }
     }
-    return apiClient.put(`/api/v1/recipes/${id}`, data)
+    const response = await apiClient.put(`/api/v1/recipes/${id}`, data)
+    invalidateQueryCache('guns:')
+    invalidateQueryCache('gun:')
+    return response
   }
 
   /**
@@ -192,7 +203,10 @@ class GunService {
     if (IS_SUPABASE) {
       return this.updateGun(id, data)
     }
-    return apiClient.patch(`/api/v1/recipes/${id}`, data)
+    const response = await apiClient.patch(`/api/v1/recipes/${id}`, data)
+    invalidateQueryCache('guns:')
+    invalidateQueryCache('gun:')
+    return response
   }
 
   /**
@@ -201,9 +215,14 @@ class GunService {
   async deleteGun(id) {
     if (IS_SUPABASE) {
       await apiClient.delete(`/rest/v1/products?id=eq.${id}`)
+      invalidateQueryCache('guns:')
+      invalidateQueryCache('gun:')
       return { success: true }
     }
-    return apiClient.delete(`/api/v1/recipes/${id}`)
+    const response = await apiClient.delete(`/api/v1/recipes/${id}`)
+    invalidateQueryCache('guns:')
+    invalidateQueryCache('gun:')
+    return response
   }
 }
 
