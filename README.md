@@ -84,7 +84,7 @@ Tautan ID lokal untuk katalog cadangan juga dapat dibuka kembali.
 hanya halaman katalog. Tombol pada kartu menghentikan event klik agar detail
 tidak terbuka saat pengguna hanya ingin membagikan tautan.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.2 Lazy Load
 
@@ -96,7 +96,7 @@ mendekati viewport; tombol **Load more items** tetap tersedia.
 melalui DevTools > Network > Img: muat ulang halaman, buka katalog, lalu scroll
 dan amati permintaan gambar muncul bertahap.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.3 Query Caching
 
@@ -110,7 +110,7 @@ masa cache, termasuk setelah reload. Gambar yang sudah pernah diminta dapat
 diambil dari cache service worker; periksa Network > Img setelah reload dan
 lihat kolom Size/Transferred untuk indikator cache.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.4 Profile
 
@@ -122,7 +122,7 @@ profil membuka halaman terpisah untuk memperbarui nama dan bio.
 navbar tersendiri, sementara pengeditan profil memiliki alur dan halaman fokus.
 Draft disimpan lokal di browser.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.5 Soft delete atau arsip
 
@@ -134,7 +134,7 @@ browser ini.
 sehingga pengguna dapat memulihkan produk. Hapus permanen meminta konfirmasi
 dan tidak dapat dipulihkan. Penanda arsip produk lokal disimpan di browser.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.6 Review
 
@@ -144,7 +144,7 @@ memberi thumbs up atau thumbs down pada review yang tersedia.
 **Analisis:** Aksi edit/hapus hanya ditampilkan pada review dengan ID pengguna
 yang sama. Reaksi dapat diubah atau dibatalkan dan disimpan lokal di browser.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### 6.6.7 Gambar pada katalog
 
@@ -159,14 +159,13 @@ thumbnail. Simpanan lokal membuat gambar tambahan terlihat kembali pada browser
 yang sama; sinkronisasi ke pengguna/perangkat lain membutuhkan backend yang
 menerima dan menyimpan field `image_urls`.
 
-**Link Vercel:** `https://<nama-project>.vercel.app` (isi setelah deployment).
+**Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
 ### Hosting Vercel dan bukti
 
 Proyek menyertakan [vercel.json](./vercel.json) dengan build command
-`npm run build` dan output directory `dist`. Hubungkan repositori ke Vercel,
-lalu atur `VITE_API_BASE_URL` di Project Settings > Environment Variables
-(gunakan nilai backend dari `.env.example`). Setelah deployment, ganti semua
-placeholder link di atas dengan URL produksi dan sertakan screenshot hasil UI,
-galeri gambar, serta panel Network sebagai bukti tugas. URL Vercel belum tersedia
-sebelum deployment dilakukan.
+`npm run build` dan output directory `dist`. Deployment tersedia di
+[https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/);
+dashboard proyek: [Vercel](https://vercel.com/responsipbb/modul5-pwa-2-kel03).
+Sertakan screenshot hasil UI, galeri gambar, serta panel Network sebagai bukti
+tugas.
