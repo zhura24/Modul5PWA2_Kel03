@@ -88,12 +88,17 @@ tidak terbuka saat pengguna hanya ingin membagikan tautan.
 
 ### 6.6.2 Lazy Load
 
-Gambar katalog memakai `loading="lazy"` dan `decoding="async"`. Katalog
-menampilkan 12 item terlebih dahulu dan menambahkan item saat area bawah layar
-mendekati viewport; tombol **Load more items** tetap tersedia.
+Gambar katalog memakai `IntersectionObserver` dengan jarak pemicu 160 px dari
+viewport. URL gambar baru dipasang ketika gambar mendekati layar; `loading="lazy"`
+dan `decoding="async"` menjadi lapisan tambahan. Katalog menampilkan 12 item
+terlebih dahulu dan menambahkan item saat area bawah layar mendekati viewport;
+tombol **Load more items** tetap tersedia.
 
-**Analisis:** Gambar dan kartu berikutnya tidak dimuat sekaligus. Verifikasi
-melalui DevTools > Network > Img: muat ulang halaman, buka katalog, lalu scroll
+**Analisis:** Gambar di bawah layar tidak diminta sampai mendekati area tampilan,
+meskipun browser dapat menampilkan gambar dari cache tanpa transfer jaringan.
+Verifikasi melalui DevTools > Network > Img: centang **Disable cache**, muat
+ulang halaman, lalu amati gambar mana yang diminta sebelum scroll. Scroll
+bertahap untuk melihat request gambar berikutnya.
 dan amati permintaan gambar muncul bertahap.
 
 **Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
