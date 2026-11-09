@@ -25,6 +25,22 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'product-images',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
       },
     }),
   ],

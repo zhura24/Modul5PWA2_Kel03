@@ -12,10 +12,15 @@ import {
   UserRoundPen,
 } from 'lucide-react'
 import userService from '../services/userService'
+import gunService from '../services/gunService'
 import { useFavorites } from '../hooks/useFavorites'
 import { useGuns } from '../hooks/useGuns'
 import { deleteDraft, getAllDrafts } from '../utils/draftStorage'
-import { getArchivedGunIds, restoreGun } from '../services/archiveService'
+import {
+  getArchivedGunIds,
+  permanentlyDeleteGun,
+  restoreGun,
+} from '../services/archiveService'
 import GUNS_LOCAL from '../data/guns'
 import About from './About'
 import Contact from './Contact'
@@ -34,6 +39,7 @@ export default function ProfilePage({ onReplaySplash, onEditProfile, onNavigate 
   const [activeSection, setActiveSection] = useState('overview')
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState('')
+  const [permanentlyDeletingId, setPermanentlyDeletingId] = useState(null)
   const [drafts, setDrafts] = useState(() => getAllDrafts())
   const [archiveState, setArchiveState] = useState(() => {
     try {
@@ -95,6 +101,30 @@ export default function ProfilePage({ onReplaySplash, onEditProfile, onNavigate 
       }))
     } catch (error) {
       setArchiveState((current) => ({ ...current, error: error.message }))
+    }
+  }
+
+  const handlePermanentDelete = async (gun) => {
+    if (!window.confirm(`Permanently delete "${gun.name}"? This cannot be undone.`)) return
+
+    setPermanentlyDeletingId(String(gun.id))
+    try {
+      if (!String(gun.id).startsWith('local-')) {
+        const result = await gunService.deleteGun(gun.id)
+        if (!result.success) throw new Error(result.message || 'The server did not delete this item.')
+      }
+      permanentlyDeleteGun(gun.id)
+      setArchiveState((current) => ({
+        ...current,
+        ids: current.ids.filter((id) => id !== String(gun.id)),
+        error: '',
+      }))
+      setFeedback('Item permanently deleted.')
+      window.setTimeout(() => setFeedback(''), 3000)
+    } catch (error) {
+      setArchiveState((current) => ({ ...current, error: error.message }))
+    } finally {
+      setPermanentlyDeletingId(null)
     }
   }
 
@@ -251,9 +281,21 @@ export default function ProfilePage({ onReplaySplash, onEditProfile, onNavigate 
                       <strong>{gun.name}</strong>
                       <span>{gun.type || gun.category || 'Item'}{gun.caliber ? ` · ${gun.caliber}` : ''}</span>
                     </div>
-                    <button type="button" className="btn btn--outline btn--sm" onClick={() => handleRestore(gun.id)}>
-                      <RotateCcw size={14} /> Restore
-                    </button>
+                    <div className="profile-item-actions">
+                      <button type="button" className="btn btn--outline btn--sm" onClick={() => handleRestore(gun.id)}>
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger-ghost"
+                        onClick={() => handlePermanentDelete(gun)}
+                        disabled={permanentlyDeletingId === String(gun.id)}
+                        aria-label={`Permanently delete ${gun.name}`}
+                        title="Permanently delete"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

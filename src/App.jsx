@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Header from './components/Header.jsx'
 import Footer from './components/Footer.jsx'
 import Catalog from './pages/Catalog.jsx'
@@ -13,6 +13,7 @@ import PWABadge from './components/PWABadge.jsx'
 import ConfirmModal from './components/modals/ConfirmModal.jsx'
 import SplashScreen from './components/common/SplashScreen.jsx'
 import { useGunById } from './hooks/useGuns.js'
+import GUNS_LOCAL from './data/guns.js'
 import { archiveGun } from './services/archiveService.js'
 import './App.css'
 
@@ -27,7 +28,19 @@ function App() {
   const [sharedGunId, setSharedGunId] = useState(
     () => new URLSearchParams(window.location.search).get('gun'),
   )
-  const { gun: sharedGun, loading: sharedGunLoading, error: sharedGunError } = useGunById(sharedGunId)
+  const sharedLocalGun = useMemo(() => {
+    if (!sharedGunId?.startsWith('local-')) return null
+    const index = GUNS_LOCAL.findIndex((_, itemIndex) => `local-${itemIndex}` === sharedGunId)
+    if (index < 0) return null
+    return { ...GUNS_LOCAL[index], id: `local-${index}` }
+  }, [sharedGunId])
+  const {
+    gun: apiSharedGun,
+    loading: apiSharedGunLoading,
+    error: sharedGunError,
+  } = useGunById(sharedGunId && !sharedGunId.startsWith('local-') ? sharedGunId : null)
+  const sharedGun = sharedLocalGun || apiSharedGun
+  const sharedGunLoading = !sharedLocalGun && apiSharedGunLoading
   const [cart, setCart] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('bore_barrel_demo_cart') || '[]')

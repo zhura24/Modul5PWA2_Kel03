@@ -4,6 +4,8 @@ import FavoriteButton from '../common/FavoriteButton'
 import { useReviews, useCreateReview } from '../../hooks/useReviews'
 import { getUserIdentifier, getUserProfile } from '../../services/userService'
 import { formatPrice, averageRating } from '../../utils/helpers'
+import { shareGunLink } from '../../utils/share'
+import { getCatalogImages } from '../../utils/catalogImages'
 
 /**
  * Full-screen product detail view.
@@ -15,12 +17,14 @@ import { formatPrice, averageRating } from '../../utils/helpers'
  * @param {Function} [props.onArchive] — trigger archive flow
  */
 export default function GunDetail({ gun, onBack, onEdit, onArchive, onAddToCart }) {
-  const imgSrc = gun.image_url || gun.image || '/guns/pistol.svg'
+  const imageUrls = getCatalogImages(gun)
+  const [selectedImageUrl, setSelectedImageUrl] = useState('')
+  const imgSrc = imageUrls.includes(selectedImageUrl) ? selectedImageUrl : imageUrls[0] || '/guns/pistol.svg'
   const category = gun.type || gun.category || '—'
   const caliber = gun.caliber || gun.difficulty || ''
   const price = gun.price ?? gun.cook_time ?? 0
   const canReview = Boolean(gun.id) && !String(gun.id).startsWith('local-')
-  const canShare = Boolean(gun.id) && !String(gun.id).startsWith('local-')
+  const canShare = Boolean(gun.id)
 
   // Reviews
   const { reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews(gun.id)
@@ -82,19 +86,12 @@ export default function GunDetail({ gun, onBack, onEdit, onArchive, onAddToCart 
       return
     }
 
-    const url = new URL(window.location.href)
-    url.searchParams.set('gun', String(gun.id))
     try {
-      if (navigator.share) {
-        await navigator.share({ title: gun.name, url: url.toString() })
-        setShareMessage('Link shared.')
-      } else {
-        await navigator.clipboard.writeText(url.toString())
-        setShareMessage('Unique link copied.')
-      }
+      const result = await shareGunLink(gun)
+      setShareMessage(result === 'shared' ? 'Link shared.' : 'Unique link copied.')
     } catch (error) {
       if (error.name !== 'AbortError') {
-        setShareMessage('Could not share the link. Check browser permissions.')
+        setShareMessage(error.message || 'Could not share the link. Check browser permissions.')
       }
     }
     window.setTimeout(() => setShareMessage(''), 3000)
@@ -134,7 +131,25 @@ export default function GunDetail({ gun, onBack, onEdit, onArchive, onAddToCart 
 
       {/* Hero */}
       <div className="detail-hero">
-        <img className="detail-img" src={imgSrc} alt={gun.name} />
+        <div className="detail-gallery">
+          <img className="detail-img" src={imgSrc} alt={gun.name} />
+          {imageUrls.length > 1 && (
+            <div className="detail-gallery-thumbnails" aria-label="Product images">
+              {imageUrls.map((url, index) => (
+                <button
+                  type="button"
+                  key={url}
+                  className={imgSrc === url ? 'detail-gallery-thumb is-selected' : 'detail-gallery-thumb'}
+                  onClick={() => setSelectedImageUrl(url)}
+                  aria-label={`Show image ${index + 1} of ${imageUrls.length}`}
+                  aria-pressed={imgSrc === url}
+                >
+                  <img src={url} alt="" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="detail-info">
           <h1 className="display">{gun.name}</h1>
           <p className="type">

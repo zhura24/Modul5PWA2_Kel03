@@ -1,5 +1,9 @@
+import { useState } from 'react'
+import { Share2 } from 'lucide-react'
 import FavoriteButton from '../common/FavoriteButton'
 import { formatPrice, truncate } from '../../utils/helpers'
+import { shareGunLink } from '../../utils/share'
+import { getCatalogImages } from '../../utils/catalogImages'
 
 /**
  * Product card used in the catalog grid.
@@ -11,10 +15,23 @@ import { formatPrice, truncate } from '../../utils/helpers'
  * @param {Function} [props.onArchive]— called when Archive is clicked
  */
 export default function GunCard({ gun, onSelect, onEdit, onArchive }) {
-  const imgSrc = gun.image_url || gun.image || '/guns/pistol.svg'
+  const [shareMessage, setShareMessage] = useState('')
+  const imgSrc = getCatalogImages(gun)[0] || '/guns/pistol.svg'
   const category = gun.type || gun.category || '—'
   const caliber = gun.caliber || gun.difficulty || ''
   const price = gun.price ?? gun.cook_time ?? 0
+
+  const handleShare = async (event) => {
+    event.stopPropagation()
+    try {
+      const result = await shareGunLink(gun)
+      setShareMessage(result === 'shared' ? 'Link shared.' : 'Link copied.')
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setShareMessage(error.message || 'Could not share this item.')
+      }
+    }
+  }
 
   return (
     <li className="card">
@@ -31,6 +48,7 @@ export default function GunCard({ gun, onSelect, onEdit, onArchive }) {
           width="240"
           height="180"
           loading="lazy"
+          decoding="async"
         />
 
         <span className="name display">{gun.name}</span>
@@ -50,6 +68,17 @@ export default function GunCard({ gun, onSelect, onEdit, onArchive }) {
       {/* Floating actions row */}
       <div className="card-actions">
         <FavoriteButton gunId={gun.id || gun.name} />
+
+        <button
+          type="button"
+          className="card-act-btn"
+          onClick={handleShare}
+          aria-label={`Share ${gun.name}`}
+          title="Share link"
+          disabled={!gun.id}
+        >
+          <Share2 size={15} />
+        </button>
 
         {onEdit && (
           <button
@@ -75,6 +104,7 @@ export default function GunCard({ gun, onSelect, onEdit, onArchive }) {
           </button>
         )}
       </div>
+      {shareMessage && <span className="card-share-status" role="status">{shareMessage}</span>}
     </li>
   )
 }

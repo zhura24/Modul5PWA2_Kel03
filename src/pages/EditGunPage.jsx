@@ -20,6 +20,7 @@ import {
   formatDraftTime,
 } from '../utils/draftStorage'
 import ConfirmModal from '../components/modals/ConfirmModal'
+import { getCatalogImages, saveCatalogImages } from '../utils/catalogImages'
 
 /**
  * EditGunPage — Edit an existing weapon / hardware item.
@@ -45,9 +46,8 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
     is_featured: false,
   })
 
-  const [currentImageUrl, setCurrentImageUrl] = useState('')
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
+  const [imageUrls, setImageUrls] = useState([])
+  const [imageFiles, setImageFiles] = useState([])
   const [uploading, setUploading] = useState(false)
 
   // Specs & Steps
@@ -88,7 +88,7 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             servings: data.servings || 1,
             is_featured: Boolean(data.is_featured),
           })
-          setCurrentImageUrl(data.image_url || data.image || '/guns/pistol.svg')
+          setImageUrls(getCatalogImages(data))
 
           if (data.ingredients && data.ingredients.length > 0) {
             setSpecs(data.ingredients.map((ing) => ({
@@ -131,9 +131,8 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       if (draft.formData) setFormData(draft.formData)
       if (draft.specs) setSpecs(draft.specs)
       if (draft.steps) setSteps(draft.steps)
-      if (draft.imagePreview) {
-        setImagePreview(draft.imagePreview)
-      }
+      if (draft.imageUrls) setImageUrls(draft.imageUrls)
+      else if (draft.imagePreview) setImageUrls([draft.imagePreview])
       setShowDraftModal(false)
       setSuccessMsg('Saved draft restored.')
       setTimeout(() => setSuccessMsg(''), 3000)
@@ -151,7 +150,7 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       formData,
       specs,
       steps,
-      imagePreview: imagePreview || currentImageUrl,
+      imageUrls: imageUrls.filter((url) => !url.startsWith('blob:')),
     }
     const saved = saveDraft(draftData, targetId)
     if (saved) {
@@ -164,42 +163,44 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
 
   // Handle new image file
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File size exceeds 5MB limit.')
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    const files = Array.from(e.target.files || [])
+    if (files.some((file) => file.size > 5 * 1024 * 1024)) {
+      setError('Each image must be under 5MB.')
       return
     }
-
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.type)) {
+    if (files.some((file) => !allowed.includes(file.type))) {
       setError('Allowed formats: .jpg, .jpeg, .png, .webp')
       return
     }
 
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+    setImageFiles((current) => [...current, ...files])
+    setImageUrls((current) => [...current, ...files.map((file) => URL.createObjectURL(file))])
     setError('')
+    e.target.value = ''
   }
 
-  const handleUploadNewImage = async () => {
-    if (!imageFile) return
+  const handleUploadNewImages = async () => {
+    if (imageFiles.length === 0) return
     try {
       setUploading(true)
-      const res = await uploadService.uploadImage(imageFile)
-      if (res.success && res.data?.url) {
-        setCurrentImageUrl(res.data.url)
-        setImageFile(null)
-        setImagePreview(null)
-        setSuccessMsg('New image uploaded successfully.')
-        setTimeout(() => setSuccessMsg(''), 3000)
+      setError('')
+      const uploadedUrls = []
+      for (const file of imageFiles) {
+        const result = await uploadService.uploadImage(file)
+        if (!result.success || !result.data?.url) {
+          throw new Error(result.message || `Could not upload ${file.name}.`)
+        }
+        uploadedUrls.push(result.data.url)
       }
+      setImageUrls((current) => current.map((url) => (
+        url.startsWith('blob:') ? uploadedUrls.shift() || url : url
+      )))
+      setImageFiles([])
+      setSuccessMsg('Images uploaded successfully.')
+      setTimeout(() => setSuccessMsg(''), 3000)
     } catch (err) {
-      console.warn('Image upload failed, using local blob:', err)
-      setCurrentImageUrl(imagePreview)
-      setImageFile(null)
-      setImagePreview(null)
+      setError(err.message || 'Could not upload the selected images.')
     } finally {
       setUploading(false)
     }
@@ -239,6 +240,11 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
     e.preventDefault()
     setError('')
 
+    if (imageFiles.length > 0) {
+      setError('Upload all selected images before saving the product.')
+      return
+    }
+
     if (!formData.name.trim() || formData.name.trim().length < 3) {
       setError('Product name must be at least 3 characters.')
       return
@@ -272,7 +278,8 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       price: Number(formData.price) || 500,
       category: formData.category || 'makanan',
       description: formData.description.trim() || `${formData.type} caliber ${formData.caliber}.`,
-      image_url: imagePreview || currentImageUrl || '/guns/pistol.svg',
+      image_url: imageUrls[0] || '/guns/pistol.svg',
+      image_urls: imageUrls.length > 0 ? imageUrls : ['/guns/pistol.svg'],
       prep_time: 15,
       cook_time: Number(formData.price) || 500,
       servings: Number(formData.servings) || 1,
@@ -286,6 +293,7 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       setUpdating(true)
       const res = await gunService.updateGun(targetId, payload)
       if (res.success || res.data) {
+        saveCatalogImages(targetId, imageUrls)
         deleteDraft(targetId)
         if (onSuccess) {
           onSuccess(res.data)
@@ -350,42 +358,62 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         {/* Imagery Section */}
         <div className="card-box">
           <h2 className="card-box-title">Visual Asset</h2>
-          <div className="edit-img-wrap">
-            <img
-              src={imagePreview || currentImageUrl}
-              alt="Current hardware"
-              className="edit-current-img"
-            />
-            <div className="edit-img-controls">
-              <input
-                id="edit-gun-image"
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleImageChange}
-                className="hidden-file-input"
-              />
-              <label htmlFor="edit-gun-image" className="btn btn--outline btn--sm">
-                <Upload size={14} /> Select New Image File
-              </label>
-
-              {imageFile && (
+          <div className="catalog-image-previews">
+            {imageUrls.map((url, index) => (
+              <div className="catalog-image-preview" key={`${url}-${index}`}>
+                <img
+                  src={url}
+                  alt={`Product image ${index + 1}`}
+                  className="edit-current-img"
+                />
                 <button
                   type="button"
-                  className="btn btn--primary btn--sm"
-                  onClick={handleUploadNewImage}
-                  disabled={uploading}
+                  className="preview-remove-btn"
+                  onClick={() => {
+                    setImageUrls((current) => current.filter((_, imageIndex) => imageIndex !== index))
+                    if (url.startsWith('blob:')) {
+                      const fileIndex = imageUrls.slice(0, index).filter((imageUrl) => imageUrl.startsWith('blob:')).length
+                      setImageFiles((current) => current.filter((_, imageIndex) => imageIndex !== fileIndex))
+                    }
+                  }}
+                  aria-label={`Remove image ${index + 1}`}
                 >
-                  {uploading ? (
-                    <>
-                      <Loader size={14} className="spin" /> Uploading…
-                    </>
-                  ) : (
-                    'Upload to MinIO'
-                  )}
+                  <X size={18} />
                 </button>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
+          <div className="edit-img-controls">
+            <input
+              id="edit-gun-image"
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleImageChange}
+              className="hidden-file-input"
+              multiple
+            />
+            <label htmlFor="edit-gun-image" className="btn btn--outline btn--sm">
+              <Plus size={14} /> Add product images
+            </label>
+
+            {imageFiles.length > 0 && (
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={handleUploadNewImages}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <Loader size={14} className="spin" /> Uploading…
+                  </>
+                ) : (
+                  <><Upload size={14} /> Upload {imageFiles.length} image(s)</>
+                )}
+              </button>
+            )}
+          </div>
+          <p className="form-hint">The first image is the catalog cover. Select multiple JPG, PNG, or WebP images (up to 5MB each).</p>
         </div>
 
         {/* Core fields */}

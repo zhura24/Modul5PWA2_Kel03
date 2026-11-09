@@ -6,7 +6,11 @@ import GunCard from '../components/gun/GunCard'
 import GunDetail from '../components/gun/GunDetail'
 import AdvancedFilter from '../components/common/AdvancedFilter'
 import ConfirmModal from '../components/modals/ConfirmModal'
-import { archiveGun, getArchivedGunIds } from '../services/archiveService'
+import {
+  archiveGun,
+  getArchivedGunIds,
+  getPermanentlyDeletedGunIds,
+} from '../services/archiveService'
 import {
   matchesSearch,
   matchesCategory,
@@ -35,6 +39,14 @@ export default function Catalog({ onNavigate, onAddToCart }) {
     }
   })
   const archivedIds = archiveState.ids
+  const [permanentlyDeletedState] = useState(() => {
+    try {
+      return { ids: getPermanentlyDeletedGunIds(), error: '' }
+    } catch (archiveError) {
+      return { ids: [], error: archiveError.message }
+    }
+  })
+  const permanentlyDeletedIds = permanentlyDeletedState.ids
   const [visibleState, setVisibleState] = useState({ filterKey: '', count: 12 })
   const loadMoreRef = useRef(null)
 
@@ -54,8 +66,11 @@ export default function Catalog({ onNavigate, onAddToCart }) {
   const [sortOrder, setSortOrder] = useState('asc')
 
   const visibleCatalog = useMemo(
-    () => rawGuns.filter((gun) => !archivedIds.includes(String(gun.id))),
-    [rawGuns, archivedIds],
+    () => rawGuns.filter((gun) =>
+      !archivedIds.includes(String(gun.id)) &&
+      !permanentlyDeletedIds.includes(String(gun.id)),
+    ),
+    [rawGuns, archivedIds, permanentlyDeletedIds],
   )
   const categories = useMemo(() => extractCategories(visibleCatalog), [visibleCatalog])
 
@@ -142,7 +157,9 @@ export default function Catalog({ onNavigate, onAddToCart }) {
       </section>
 
       <section>
-        {archiveState.error && <p className="form-error" role="alert">{archiveState.error}</p>}
+        {(archiveState.error || permanentlyDeletedState.error) && (
+          <p className="form-error" role="alert">{archiveState.error || permanentlyDeletedState.error}</p>
+        )}
         <div className="list-head">
           <h2>Current stock</h2>
           <div className="list-head-right">
