@@ -104,11 +104,19 @@ Hasil query katalog, detail produk, dan review disimpan selama 30 detik di
 memori serta `localStorage`. Perubahan produk/review menginvalidasi cache terkait.
 Service worker menyimpan maksimal 100 gambar di cache `product-images` hingga
 30 hari dengan strategi Cache First.
+Vercel juga mengirim header `Cache-Control` untuk gambar lokal `/guns/*`, logo,
+dan ikon agar browser dapat menggunakannya kembali dari HTTP cache selama satu
+hari, lalu melakukan validasi ulang secara bertahap.
 
 **Analisis:** Query yang sama dapat digunakan kembali tanpa meminta API selama
 masa cache, termasuk setelah reload. Gambar yang sudah pernah diminta dapat
 diambil dari cache service worker; periksa Network > Img setelah reload dan
-lihat kolom Size/Transferred untuk indikator cache.
+lihat kolom Size/Transferred untuk indikator cache. Cache hit yang dilayani
+service worker dapat ditandai `from ServiceWorker`, sedangkan HTTP cache browser
+dapat ditandai `from disk cache` atau `from memory cache`. Hasilnya bergantung
+pada browser dan jalur request; untuk memeriksa HTTP cache secara terpisah,
+gunakan opsi **Bypass for network** pada Application > Service Workers lalu
+reload halaman.
 
 **Link Vercel:** [https://modul5-pwa-2-kel03.vercel.app/](https://modul5-pwa-2-kel03.vercel.app/).
 
